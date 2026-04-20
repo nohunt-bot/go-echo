@@ -16,6 +16,7 @@ func NewSession(cfg config.CassandraConfig) (gocqlx.Session, error) {
 	cluster.Consistency = gocql.Quorum
 	cluster.Timeout = 5 * time.Second
 	cluster.ConnectTimeout = 10 * time.Second
+	cluster.NumConns = cfg.NumConns
 	cluster.RetryPolicy = &gocql.ExponentialBackoffRetryPolicy{
 		Min:        100 * time.Millisecond,
 		Max:        5 * time.Second,

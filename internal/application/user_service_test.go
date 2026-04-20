@@ -1,6 +1,7 @@
 package application_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ch/go_echo/internal/application"
@@ -9,14 +10,15 @@ import (
 	"github.com/google/uuid"
 )
 
-func newSvc() *application.UserService {
+func newUserSvc() *application.UserService {
 	return application.NewUserService(memory.NewUserRepository())
 }
 
 func TestCreateAndGet(t *testing.T) {
-	svc := newSvc()
+	ctx := context.Background()
+	svc := newUserSvc()
 
-	created, err := svc.CreateUser(&user.CreateRequest{Name: "Alice", Email: "alice@example.com"})
+	created, err := svc.CreateUser(ctx, &user.CreateRequest{Name: "Alice", Email: "alice@example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +26,7 @@ func TestCreateAndGet(t *testing.T) {
 		t.Fatal("expected non-zero UUID")
 	}
 
-	got, err := svc.GetUser(created.ID)
+	got, err := svc.GetUser(ctx, created.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,11 +36,12 @@ func TestCreateAndGet(t *testing.T) {
 }
 
 func TestListUsers(t *testing.T) {
-	svc := newSvc()
-	svc.CreateUser(&user.CreateRequest{Name: "A", Email: "a@x.com"})
-	svc.CreateUser(&user.CreateRequest{Name: "B", Email: "b@x.com"})
+	ctx := context.Background()
+	svc := newUserSvc()
+	svc.CreateUser(ctx, &user.CreateRequest{Name: "A", Email: "a@x.com"})
+	svc.CreateUser(ctx, &user.CreateRequest{Name: "B", Email: "b@x.com"})
 
-	users, err := svc.ListUsers()
+	users, err := svc.ListUsers(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,8 +51,9 @@ func TestListUsers(t *testing.T) {
 }
 
 func TestGetNotFound(t *testing.T) {
-	svc := newSvc()
-	_, err := svc.GetUser(uuid.New())
+	ctx := context.Background()
+	svc := newUserSvc()
+	_, err := svc.GetUser(ctx, uuid.New())
 	if err != user.ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}

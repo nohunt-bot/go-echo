@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"errors"
 
 	"github.com/google/uuid"
@@ -9,7 +10,7 @@ import (
 var ErrNotFound = errors.New("user not found")
 
 type Repository interface {
-	FindAll() ([]*User, error)
-	FindByID(id uuid.UUID) (*User, error)
-	Create(u *User) (*User, error)
+	FindAll(ctx context.Context) ([]*User, error)
+	FindByID(ctx context.Context, id uuid.UUID) (*User, error)
+	Create(ctx context.Context, u *User) (*User, error)
 }

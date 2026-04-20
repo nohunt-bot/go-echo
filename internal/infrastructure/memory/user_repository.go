@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"sync"
 
 	"github.com/ch/go_echo/internal/domain/user"
@@ -16,7 +17,7 @@ func NewUserRepository() user.Repository {
 	return &userRepository{store: make(map[uuid.UUID]*user.User)}
 }
 
-func (r *userRepository) FindAll() ([]*user.User, error) {
+func (r *userRepository) FindAll(_ context.Context) ([]*user.User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]*user.User, 0, len(r.store))
@@ -26,7 +27,7 @@ func (r *userRepository) FindAll() ([]*user.User, error) {
 	return out, nil
 }
 
-func (r *userRepository) FindByID(id uuid.UUID) (*user.User, error) {
+func (r *userRepository) FindByID(_ context.Context, id uuid.UUID) (*user.User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	u, ok := r.store[id]
@@ -36,7 +37,7 @@ func (r *userRepository) FindByID(id uuid.UUID) (*user.User, error) {
 	return u, nil
 }
 
-func (r *userRepository) Create(u *user.User) (*user.User, error) {
+func (r *userRepository) Create(_ context.Context, u *user.User) (*user.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	u.ID = uuid.New()

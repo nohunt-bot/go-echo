@@ -3,7 +3,6 @@ package cassandra
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ch/go_echo/internal/domain/user"
 	"github.com/gocql/gocql"
@@ -14,8 +13,6 @@ import (
 
 const usersTable = "users"
 
-// userRow is the Cassandra-specific mapping struct.
-// It keeps gocql types out of the domain layer.
 type userRow struct {
 	ID    gocql.UUID `db:"id"`
 	Name  string     `db:"name"`
@@ -38,10 +35,7 @@ func NewUserRepository(session gocqlx.Session) user.Repository {
 	return &userRepository{session: session}
 }
 
-func (r *userRepository) FindAll() ([]*user.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (r *userRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 	stmt, names := qb.Select(usersTable).Columns("id", "name", "email").ToCql()
 
 	var rows []userRow
@@ -56,10 +50,7 @@ func (r *userRepository) FindAll() ([]*user.User, error) {
 	return out, nil
 }
 
-func (r *userRepository) FindByID(id uuid.UUID) (*user.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (r *userRepository) FindByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
 	stmt, names := qb.Select(usersTable).
 		Columns("id", "name", "email").
 		Where(qb.Eq("id")).
@@ -79,10 +70,7 @@ func (r *userRepository) FindByID(id uuid.UUID) (*user.User, error) {
 	return toDomain(row), nil
 }
 
-func (r *userRepository) Create(u *user.User) (*user.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (r *userRepository) Create(ctx context.Context, u *user.User) (*user.User, error) {
 	u.ID = uuid.New()
 	row := toRow(u)
 

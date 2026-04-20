@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run the server (requires Cassandra; see env vars below)
+# Run the server
 go run ./cmd/server
 
 # Build binary
@@ -32,17 +32,22 @@ go mod tidy
 |---|---|---|
 | `PORT` | `8080` | HTTP listen port |
 | `APP_ENV` | `development` | Runtime environment |
+| `REQUEST_TIMEOUT` | `30s` | Per-request deadline; supports Go duration strings (`30s`, `1m`) |
+| `MAX_CONCURRENT` | `100` | Max simultaneous in-flight requests (global semaphore) |
+| `RATE_LIMIT_PER_SEC` | `20` | Max requests/sec per IP (burst = rate × 3) |
 | `CASSANDRA_HOSTS` | `127.0.0.1` | Comma-separated node addresses |
 | `CASSANDRA_KEYSPACE` | `go_echo` | Cassandra keyspace |
 | `CASSANDRA_USERNAME` | _(none)_ | Optional auth |
 | `CASSANDRA_PASSWORD` | _(none)_ | Optional auth |
+| `REDIS_ADDR` | `127.0.0.1:6379` | Redis address |
+| `REDIS_PASSWORD` | _(none)_ | Optional auth |
 
 ## Database setup
 
-Apply the schema once before starting the server:
-
 ```bash
+# Cassandra schema (run once)
 cqlsh < db/migrations/001_create_users.cql
+cqlsh < db/migrations/002_create_tools.cql
 ```
 
 ## Architecture
@@ -55,30 +60,71 @@ interfaces/http → application → domain ← infrastructure
 
 ```
 internal/
-├── domain/user/            Entity, Repository interface, ErrNotFound
-├── application/            UserService use-case (depends only on domain)
+├── domain/
+│   ├── user/               Entity, Repository interface, ErrNotFound
+│   └── tool/               Entity, Repository interface, ErrNotFound
+├── application/            UserService, ToolService (depend only on domain)
 ├── infrastructure/
-│   ├── cassandra/          Session factory + Cassandra UserRepository
-│   └── memory/             In-memory UserRepository (dev / tests)
+│   ├── cassandra/          Session factory; User/Tool repository (production)
+│   ├── redis/              Redis client + retry helper; User/Tool repository (fallback)
+│   └── memory/             In-memory User/Tool repository (unit tests only)
 └── interfaces/http/
-    ├── handler/            Echo handlers; defines its own userService interface
-    ├── middleware/         RequestID and future middleware
-    └── server.go           Echo setup, DI wiring, route registration
+    ├── handler/            Echo handlers (user, tool); each defines its own service interface
+    ├── middleware/         RequestID, ConcurrencyLimiter
+    └── server.go           Echo setup, middleware chain, DI wiring, route registration
 ```
 
-### Layer rules
+## Layer rules
 
 | Layer | May import | Must NOT import |
 |---|---|---|
 | `domain` | stdlib, `google/uuid` | anything in `internal/` |
-| `application` | `domain` | Echo, gocql, infrastructure |
-| `infrastructure` | `domain`, gocql, gocqlx | `application`, `interfaces` |
-| `interfaces/http` | `application`, `domain`, `pkg/response` | `infrastructure` directly (wired in `server.go`) |
+| `application` | `domain` | Echo, gocql, redis, infrastructure |
+| `infrastructure` | `domain`, driver libs | `application`, `interfaces` |
+| `interfaces/http` | `application`, `domain`, `pkg/response` | infrastructure directly (wired in `server.go`) |
 
-### Key conventions
+## Request middleware chain
 
-- Primary keys are `uuid.UUID` (`google/uuid`) throughout the domain and application layers. The Cassandra repo converts to/from `gocql.UUID` internally via a `userRow` struct — `gocql` types never escape into the domain.
-- All Cassandra queries use `context.WithTimeout` (5 s) and the `gocqlx` query builder (`qb.Select`, `qb.Insert`). No raw CQL string building.
-- `server.go` is the only place that selects which repository implementation to use (Cassandra when a session is provided, in-memory otherwise) and wires the full dependency graph.
-- `pkg/response` provides the shared JSON envelope `{success, data?, error?}`. All handlers use it.
-- To add a new resource: `domain/<name>/` → `infrastructure/cassandra/` + `infrastructure/memory/` → `application/` → `interfaces/http/handler/` → register in `server.go`.
+```
+Logger → Recover → RequestID → RateLimiter → ConcurrencyLimiter → Timeout → handler
+```
+
+| Middleware | Behaviour when triggered |
+|---|---|
+| RateLimiter | 429 — per-IP token bucket |
+| ConcurrencyLimiter | 503 — global semaphore (buffered channel) |
+| Timeout | 503 — per-request context deadline |
+
+## Infrastructure conventions
+
+**Cassandra**
+- `gocqlx` query builder (`qb.Select`, `qb.Insert`) only — no raw CQL string building.
+- Each query wraps its own `context.WithTimeout(5s)`.
+- `gocql.UUID` is confined to `infrastructure/cassandra` via a `*Row` struct; domain uses `uuid.UUID`.
+
+**Redis**
+- Keys: `user:{uuid}`, `tool:{uuid}` (JSON, TTL 24 h); index sets: `users:index`, `tools:index`.
+- `Create` uses `TxPipeline` (MULTI/EXEC) to atomically write the key and update the index.
+- All calls are wrapped with `withRetry` (3 retries, exponential backoff 100 ms → 1 s).
+- `redis.Nil`, `context.Canceled`, and `context.DeadlineExceeded` are not retried.
+
+**Repository selection** (`server.go`)
+- Cassandra session present → Cassandra repositories.
+- No session → Redis repositories.
+- Memory repositories are used only in unit tests.
+
+## Adding a new domain
+
+```
+domain/<name>/entity.go          struct + CreateRequest
+domain/<name>/repository.go      Repository interface + ErrNotFound
+application/<name>_service.go    Use-case methods
+application/<name>_service_test.go
+infrastructure/cassandra/<name>_repository.go
+infrastructure/redis/<name>_repository.go
+infrastructure/memory/<name>/repository.go
+interfaces/http/handler/<name>.go
+db/migrations/NNN_create_<name>s.cql
+```
+
+Then register routes and wire dependencies in `interfaces/http/server.go`.

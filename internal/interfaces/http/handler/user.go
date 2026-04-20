@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -10,11 +11,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// userService is the narrow interface this handler depends on.
 type userService interface {
-	ListUsers() ([]*user.User, error)
-	GetUser(id uuid.UUID) (*user.User, error)
-	CreateUser(req *user.CreateRequest) (*user.User, error)
+	ListUsers(ctx context.Context) ([]*user.User, error)
+	GetUser(ctx context.Context, id uuid.UUID) (*user.User, error)
+	CreateUser(ctx context.Context, req *user.CreateRequest) (*user.User, error)
 }
 
 type UserHandler struct {
@@ -26,7 +26,7 @@ func NewUserHandler(svc userService) *UserHandler {
 }
 
 func (h *UserHandler) List(c echo.Context) error {
-	users, err := h.svc.ListUsers()
+	users, err := h.svc.ListUsers(c.Request().Context())
 	if err != nil {
 		return response.InternalError(c, err.Error())
 	}
@@ -38,7 +38,7 @@ func (h *UserHandler) Get(c echo.Context) error {
 	if err != nil {
 		return response.BadRequest(c, "invalid id: must be a UUID")
 	}
-	u, err := h.svc.GetUser(id)
+	u, err := h.svc.GetUser(c.Request().Context(), id)
 	if errors.Is(err, user.ErrNotFound) {
 		return response.NotFound(c, "user not found")
 	}
@@ -56,7 +56,7 @@ func (h *UserHandler) Create(c echo.Context) error {
 	if req.Name == "" || req.Email == "" {
 		return response.BadRequest(c, "name and email are required")
 	}
-	created, err := h.svc.CreateUser(&req)
+	created, err := h.svc.CreateUser(c.Request().Context(), &req)
 	if err != nil {
 		return response.InternalError(c, err.Error())
 	}
