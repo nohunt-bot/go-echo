@@ -1,5 +1,18 @@
+# Build
 bin/
+
+# Environment
 .env
 *.env
+
+# OS
 .DS_Store
-.idea
+
+# IDE
+.idea/
+.vscode/
+
+# Go
+vendor/
+*.test
+*.out
