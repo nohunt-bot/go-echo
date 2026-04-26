@@ -17,7 +17,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func New(cfg config.ServerConfig, session *gocqlx.Session, redisClient *goredis.Client) *echo.Echo {
+func New(cfg config.ServerConfig, session *gocqlx.Session, redisClient goredis.UniversalClient) *echo.Echo {
 	e := echo.New()
 
 	e.Use(echomw.Logger())
@@ -45,7 +45,7 @@ func New(cfg config.ServerConfig, session *gocqlx.Session, redisClient *goredis.
 	return e
 }
 
-func registerRoutes(e *echo.Echo, session *gocqlx.Session, redisClient *goredis.Client) {
+func registerRoutes(e *echo.Echo, session *gocqlx.Session, redisClient goredis.UniversalClient) {
 	// health check (no rate limit / timeout middleware applied)
 	pingers := map[string]handler.Pinger{
 		"redis": redisinfra.NewPinger(redisClient),

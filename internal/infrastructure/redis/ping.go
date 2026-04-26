@@ -7,9 +7,9 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-type Pinger struct{ client *goredis.Client }
+type Pinger struct{ client goredis.UniversalClient }
 
-func NewPinger(client *goredis.Client) *Pinger { return &Pinger{client: client} }
+func NewPinger(client goredis.UniversalClient) *Pinger { return &Pinger{client: client} }
 
 func (p *Pinger) Ping(ctx context.Context) error {
 	if err := p.client.Ping(ctx).Err(); err != nil {

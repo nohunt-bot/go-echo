@@ -19,10 +19,10 @@ const (
 )
 
 type userRepository struct {
-	client *goredis.Client
+	client goredis.UniversalClient
 }
 
-func NewUserRepository(client *goredis.Client) domain.Repository {
+func NewUserRepository(client goredis.UniversalClient) domain.Repository {
 	return &userRepository{client: client}
 }
 
@@ -103,7 +103,7 @@ func (r *userRepository) Create(ctx context.Context, u *domain.User) (*domain.Us
 	}
 
 	if err := withRetry(ctx, func() error {
-		pipe := r.client.TxPipeline()
+		pipe := r.client.Pipeline()
 		pipe.Set(ctx, userKey(u.ID), data, userTTL)
 		pipe.SAdd(ctx, usersIndex, u.ID.String())
 		_, e := pipe.Exec(ctx)

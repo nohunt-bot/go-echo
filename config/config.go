@@ -31,9 +31,8 @@ type CassandraConfig struct {
 }
 
 type RedisConfig struct {
-	Addr            string
+	Addrs           []string
 	Password        string
-	DB              int
 	PoolSize        int
 	MinIdleConns    int
 	PoolTimeout     time.Duration
@@ -59,7 +58,7 @@ func Load() *Config {
 			NumConns: parseInt(envOr("CASSANDRA_NUM_CONNS", "2")),
 		},
 		Redis: RedisConfig{
-			Addr:            envOr("REDIS_ADDR", "127.0.0.1:6379"),
+			Addrs:           strings.Split(envOr("REDIS_ADDRS", "127.0.0.1:6379"), ","),
 			Password:        os.Getenv("REDIS_PASSWORD"),
 			PoolSize:        parseInt(envOr("REDIS_POOL_SIZE", "10")),
 			MinIdleConns:    parseInt(envOr("REDIS_MIN_IDLE_CONNS", "2")),

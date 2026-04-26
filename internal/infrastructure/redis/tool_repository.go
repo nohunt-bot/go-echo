@@ -19,10 +19,10 @@ const (
 )
 
 type toolRepository struct {
-	client *goredis.Client
+	client goredis.UniversalClient
 }
 
-func NewToolRepository(client *goredis.Client) domain.Repository {
+func NewToolRepository(client goredis.UniversalClient) domain.Repository {
 	return &toolRepository{client: client}
 }
 
@@ -103,7 +103,7 @@ func (r *toolRepository) Create(ctx context.Context, t *domain.Tool) (*domain.To
 	}
 
 	if err := withRetry(ctx, func() error {
-		pipe := r.client.TxPipeline()
+		pipe := r.client.Pipeline()
 		pipe.Set(ctx, toolKey(t.ID), data, toolTTL)
 		pipe.SAdd(ctx, toolsIndex, t.ID.String())
 		_, e := pipe.Exec(ctx)

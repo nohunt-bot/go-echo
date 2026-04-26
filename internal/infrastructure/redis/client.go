@@ -9,11 +9,12 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-func NewClient(cfg config.RedisConfig) (*goredis.Client, error) {
-	client := goredis.NewClient(&goredis.Options{
-		Addr:     cfg.Addr,
+// NewClient returns a UniversalClient: standalone when Addrs has one entry,
+// cluster mode when Addrs has multiple entries.
+func NewClient(cfg config.RedisConfig) (goredis.UniversalClient, error) {
+	client := goredis.NewUniversalClient(&goredis.UniversalOptions{
+		Addrs:    cfg.Addrs,
 		Password: cfg.Password,
-		DB:       cfg.DB,
 
 		PoolSize:        cfg.PoolSize,
 		MinIdleConns:    cfg.MinIdleConns,
@@ -26,7 +27,7 @@ func NewClient(cfg config.RedisConfig) (*goredis.Client, error) {
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("redis: ping %s: %w", cfg.Addr, err)
+		return nil, fmt.Errorf("redis: ping %v: %w", cfg.Addrs, err)
 	}
 	return client, nil
 }

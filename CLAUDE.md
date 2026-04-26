@@ -39,7 +39,7 @@ go mod tidy
 | `CASSANDRA_KEYSPACE` | `go_echo` | Cassandra keyspace |
 | `CASSANDRA_USERNAME` | _(none)_ | Optional auth |
 | `CASSANDRA_PASSWORD` | _(none)_ | Optional auth |
-| `REDIS_ADDR` | `127.0.0.1:6379` | Redis address |
+| `REDIS_ADDRS` | `127.0.0.1:6379` | Comma-separated Redis cluster node addresses |
 | `REDIS_PASSWORD` | _(none)_ | Optional auth |
 
 ## Database setup
