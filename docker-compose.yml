@@ -1,0 +1,106 @@
+services:
+  # ─────────────────────────── Cassandra ───────────────────────────
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: go_echo_cluster
+      CASSANDRA_DC: dc1
+      CASSANDRA_RACK: rack1
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "DESCRIBE keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ──────────────────────────── Redis cluster (3 nodes) ────────────────────────────
+  redis-1:
+    image: redis:7-alpine
+    container_name: redis-1
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-hostname redis-1
+      --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis1_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-2:
+    image: redis:7-alpine
+    container_name: redis-2
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-hostname redis-2
+      --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis2_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-3:
+    image: redis:7-alpine
+    container_name: redis-3
+    command: >
+      redis-server
+      --port 6379
+      --cluster-enabled yes
+      --cluster-config-file nodes.conf
+      --cluster-node-timeout 5000
+      --cluster-announce-hostname redis-3
+      --appendonly yes
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis3_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 一次性 init container：等三節點就緒後建立 cluster
+  redis-cluster-init:
+    image: redis:7-alpine
+    container_name: redis-cluster-init
+    depends_on:
+      redis-1:
+        condition: service_healthy
+      redis-2:
+        condition: service_healthy
+      redis-3:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - "redis-cli --cluster create redis-1:6379 redis-2:6379 redis-3:6379 --cluster-replicas 0 --cluster-yes"
+    restart: "no"
+
+volumes:
+  cassandra_data:
+  redis1_data:
+  redis2_data:
+  redis3_data:
