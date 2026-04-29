@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,6 +39,15 @@ func run() error {
 	defer session.Close()
 
 	e := httpserver.New(cfg.Server, &session, redisClient)
+
+	if pprofPort := os.Getenv("PPROF_PORT"); pprofPort != "" {
+		go func() {
+			log.Printf("pprof listening on :%s/debug/pprof/", pprofPort)
+			if err := http.ListenAndServe(":"+pprofPort, nil); err != nil {
+				log.Printf("pprof server error: %v", err)
+			}
+		}()
+	}
 
 	serverErr := make(chan error, 1)
 	go func() {
